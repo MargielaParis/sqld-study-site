@@ -1,0 +1,170 @@
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import test from "node:test";
+
+const content = JSON.parse(await fs.readFile(new URL("../data/content.json", import.meta.url), "utf8"));
+const styles = await fs.readFile(new URL("../src/client/styles.css", import.meta.url), "utf8");
+const client = await fs.readFile(new URL("../src/client/main.ts", import.meta.url), "utf8");
+const isPublicDemo = content.manifest.some((item) => item.sourcePath.startsWith("public/"));
+
+test("all SQLD source files are represented", () => {
+  if (isPublicDemo) {
+    assert.equal(content.manifest.length, 6);
+    assert.equal(content.manifest.filter((item) => item.kind === "doc").length, 3);
+    assert.equal(content.manifest.filter((item) => item.kind === "asset").length, 3);
+    return;
+  }
+  assert.equal(content.manifest.length, 32);
+  assert.equal(content.manifest.filter((item) => item.kind === "doc").length, 29);
+  assert.equal(content.manifest.filter((item) => item.kind === "asset").length, 3);
+  const sqlSection = content.manifest.filter((item) => item.section === "02 / SQL 기본·활용");
+  assert.ok(sqlSection.findIndex((item) => item.sourcePath.startsWith("2-2_")) < sqlSection.findIndex((item) => item.sourcePath.startsWith("2-10_")));
+  assert.ok(content.manifest.some((item) => item.title === "스키마 생성 SQL"));
+});
+
+test("every markdown document has rendered HTML and a stable slug", () => {
+  for (const item of content.manifest.filter((candidate) => candidate.kind === "doc")) {
+    const doc = content.docs[item.slug];
+    assert.ok(doc, item.sourcePath);
+    assert.ok(doc.html.includes("<"), item.sourcePath);
+    assert.ok(!doc.slug.includes("/"), item.sourcePath);
+    assert.doesNotMatch(doc.html, /<h1(?:\s|>)/, item.sourcePath);
+    assert.doesNotMatch(doc.html, /<li>\s*<\/li>/, item.sourcePath);
+  }
+});
+
+test("every on-page navigation target exists in its document", () => {
+  for (const doc of Object.values(content.docs)) {
+    for (const entry of doc.toc) {
+      assert.ok(doc.html.includes(`id="${entry.id}"`), `${doc.sourcePath}#${entry.id}`);
+    }
+  }
+});
+
+test("code assets are available for download/view", () => {
+  for (const item of content.manifest.filter((candidate) => candidate.kind === "asset")) {
+    assert.ok(content.assets[item.slug]?.code, item.sourcePath);
+  }
+});
+
+test("source paths do not expose the local machine root", () => {
+  const serialized = JSON.stringify(content);
+  assert.equal(serialized.includes("/Users/"), false);
+  assert.equal(serialized.includes("file:///"), false);
+  assert.equal(serialized.includes("20-Learning/SQLD"), false);
+  assert.equal(serialized.includes("이 노트가 있는 `3-실습` 디렉터리"), false);
+});
+
+test("site-only practice setup is location-independent and explains bootstrap order", () => {
+  const doc = Object.values(content.docs).find((candidate) => candidate.sourcePath === "3-실습/3-1_실습 환경 구축 - PostgreSQL Docker Compose.md");
+  if (isPublicDemo) return;
+  assert.ok(doc);
+  assert.match(doc.html, /실습 폴더 상위 경로/);
+  assert.match(doc.html, /POSTGRES_DB/);
+  assert.match(doc.html, /01_schema\.sql/);
+  assert.match(doc.html, /02_seed\.sql/);
+  assert.match(doc.html, /CREATE DATABASE sqld_lab/);
+  assert.match(doc.html, /table-scroll/);
+  assert.match(doc.html, /data-label="단계"/);
+});
+
+test("editorial layer fixes excerpts, page ranges, and literal pipes", () => {
+  for (const doc of Object.values(content.docs)) {
+    assert.doesNotMatch(doc.excerpt, /\[![a-z]+|\|/i, doc.sourcePath);
+    assert.doesNotMatch(doc.excerpt, /\*\*|__/, doc.sourcePath);
+    assert.doesNotMatch(doc.excerpt, /(?:^| )을 사용한다\.|정답은 에 있다\./, doc.sourcePath);
+    assert.doesNotMatch(doc.html.replace(/<pre[\s\S]*?<\/pre>/g, ""), /\b\d{4}쪽/, doc.sourcePath);
+    assert.doesNotMatch(doc.html.replace(/<pre[\s\S]*?<\/pre>/g, ""), /\*\*[^*]+\*\*/, doc.sourcePath);
+  }
+  if (isPublicDemo) return;
+  const erd = Object.values(content.docs).find((doc) => doc.sourcePath.startsWith("1-2_"));
+  const relation = Object.values(content.docs).find((doc) => doc.sourcePath.startsWith("1-5_"));
+  const select = Object.values(content.docs).find((doc) => doc.sourcePath.startsWith("2-2_"));
+  assert.match(erd.html, /<code>\|<\/code>/);
+  assert.match(relation.html, /필수참여관계는 <code>\|<\/code>/);
+  assert.match(select.html, /<code>\|\|<\/code>/);
+  const answer = Object.values(content.docs).find((doc) => doc.sourcePath.startsWith("3-실습/3-6_"));
+  assert.match(answer.excerpt, /COUNT\(\*\)/);
+});
+
+test("reviewed factual errors are absent from site content", () => {
+  const serialized = JSON.stringify(content.docs);
+  for (const phrase of [
+    "2024/11/31",
+    "DATEADD(unit, d, n)",
+    "HAVING 절이 GROUP BY 절 앞",
+    "FULL OUTER JOIN을 직접적으로 지원하지",
+    "SQL Server 지원 X",
+    "PK나 FK는 default값을 가지지 않는다",
+    "NULL = NULL → unknown OR FALSE",
+    "스칼라 서브쿼리는 OUTER JOIN 연산을 사용한 결과와 같다",
+    "부모 엔터티 없이 자식 엔터티가 생성이 가능",
+    "비식별관계에서 조인이 많이 발생",
+    "루프노드(최상위 계층)",
+    "다른 테이블과의 조인 연산 불가능"
+  ]) assert.equal(serialized.includes(phrase), false, phrase);
+});
+
+test("practice wording is explicit and seed data supports every requested set", () => {
+  if (isPublicDemo) return;
+  const questions = Object.values(content.docs)
+    .filter((doc) => /3-실습\/3-[345]_/.test(doc.sourcePath))
+    .map((doc) => doc.html)
+    .join("\n");
+  assert.match(questions, /2024 - 출생연도/);
+  assert.match(questions, /REFUNDED/);
+  assert.match(questions, /기본 데이터에서 1명 반환/);
+  assert.match(questions, /unit_price, order_id, line_no/);
+  const seed = Object.values(content.assets).find((asset) => asset.sourcePath === "3-실습/db/02_seed.sql");
+  assert.ok(seed);
+  assert.match(seed.code, /\(16, 12, 304/);
+});
+
+test("interface copy uses clear Korean action labels", () => {
+  for (const phrase of ["자료 열기", "로그아웃", "비밀번호를 받은 사람만 볼 수 있습니다.", "이 문서의 목차", "실습 코드", "이전 문서", "다음 문서"])
+    assert.match(client, new RegExp(phrase));
+  for (const phrase of ["PRIVATE STUDY ARCHIVE", "ON THIS PAGE", "CODE RESOURCE", "PREVIOUS", "NEXT"])
+    assert.equal(client.includes(phrase), false, phrase);
+});
+
+test("readability safeguards cover headings, long text, tables, and code paths", () => {
+  assert.match(styles, /text-wrap:\s*balance/);
+  assert.match(styles, /text-wrap:\s*pretty/);
+  assert.match(styles, /overflow-wrap:\s*anywhere/);
+  assert.match(styles, /\.table-scroll/);
+  assert.match(styles, /\.prose table[^\{]*\{[^}]*min-width:\s*36rem/s);
+  assert.match(styles, /\.prose td::before[^\{]*\{[^}]*content:\s*attr\(data-label\)/s);
+  assert.match(styles, /\.code-toolbar span/);
+  assert.match(styles, /\.doc-header h1[^\{]*\{[^}]*font-size:\s*clamp\(2\.1rem,[^;]*3\.75rem\)/s);
+  assert.match(styles, /\.doc-header h1\.long-title[^\{]*\{[^}]*font-size:\s*clamp/s);
+  assert.match(styles, /\.doc-header h1[^\{]*\{[^}]*overflow-wrap:\s*anywhere/s);
+  assert.match(styles, /\.prose th, \.prose td[^\{]*\{[^}]*overflow-wrap:\s*anywhere/s);
+  assert.match(styles, /\.prose[^\{]*\{[^}]*font-size:\s*1rem/s);
+});
+
+test("on-page navigation tracks reading position and scrolls without rerouting", () => {
+  assert.match(client, /data-toc-link/);
+  assert.match(client, /setActiveTocLink/);
+  assert.match(client, /requestAnimationFrame/);
+  assert.match(client, /scrollIntoView\(\{[\s\S]*?behavior:[\s\S]*?"smooth"/);
+  assert.match(styles, /\.toc a\.is-active/);
+  assert.match(styles, /\.toc a\.is-active::before/);
+});
+
+test("left navigation can collapse and persists its state", () => {
+  assert.match(client, /id="sidebar-toggle"/);
+  assert.match(client, /SIDEBAR_STORAGE_KEY/);
+  assert.match(client, /localStorage\.setItem/);
+  assert.match(styles, /\.site-frame\.sidebar-collapsed \.layout/);
+  assert.match(styles, /\.site-frame\.sidebar-collapsed \.sidebar/);
+});
+
+test("no generated content contains obvious secret markers", () => {
+  const serialized = JSON.stringify(content).toLowerCase();
+  assert.equal(/private key|api[_ -]?key|access[_ -]?token/.test(serialized), false);
+});
+
+test("wiki links inside code remain code and unresolved external links are not broken", () => {
+  const serialized = JSON.stringify(content);
+  assert.equal(serialized.includes("broken-wikilink"), false);
+});

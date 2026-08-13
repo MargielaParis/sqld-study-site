@@ -1,0 +1,2 @@
+# Local-only values. Copy to .dev.vars and replace both values.
+SQLD_SITE_PASSWORD=change-this-local-password

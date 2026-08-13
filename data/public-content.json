@@ -1,0 +1,117 @@
+{
+  "generatedAt": "public-demo",
+  "manifest": [
+    {
+      "slug": "public-overview",
+      "title": "SQLD 학습 사이트 데모",
+      "section": "00 / 데모 안내",
+      "sourcePath": "public/overview",
+      "kind": "doc",
+      "summary": "개인 학습 문서 없이도 실행되는 공개 데모다. 문서 렌더링, 목차, 검색, 인증 UI의 구조만 제공한다."
+    },
+    {
+      "slug": "public-document",
+      "title": "문서 렌더링 데모",
+      "section": "01 / 문서 UI",
+      "sourcePath": "public/document-demo",
+      "kind": "doc",
+      "summary": "마크다운을 HTML 문서로 바꾸고 표·코드·목차를 함께 제공하는 화면이다."
+    },
+    {
+      "slug": "public-practice",
+      "title": "PostgreSQL 실습 데모",
+      "section": "02 / 실습 UI",
+      "sourcePath": "public/practice-demo",
+      "kind": "doc",
+      "summary": "실습 파일을 내려받고 데이터베이스 연결 정보를 안내하는 공개 예시다."
+    },
+    {
+      "slug": "public-schema",
+      "title": "스키마 생성 예시",
+      "section": "02 / 실습 UI",
+      "sourcePath": "public/schema.sql",
+      "kind": "asset",
+      "language": "sql"
+    },
+    {
+      "slug": "public-seed",
+      "title": "샘플 데이터 예시",
+      "section": "02 / 실습 UI",
+      "sourcePath": "public/seed.sql",
+      "kind": "asset",
+      "language": "sql"
+    },
+    {
+      "slug": "public-compose",
+      "title": "Docker Compose 예시",
+      "section": "02 / 실습 UI",
+      "sourcePath": "public/docker-compose.yml",
+      "kind": "asset",
+      "language": "yaml"
+    }
+  ],
+  "docs": {
+    "public-overview": {
+      "slug": "public-overview",
+      "title": "SQLD 학습 사이트 데모",
+      "section": "00 / 데모 안내",
+      "sourcePath": "public/overview",
+      "excerpt": "개인 학습 문서 없이도 실행되는 공개 데모다. 문서 렌더링, 목차, 검색, 인증 UI의 구조만 제공한다.",
+      "toc": [
+        { "level": 2, "text": "공개 저장소의 범위", "id": "공개-저장소의-범위" },
+        { "level": 2, "text": "구성 요소", "id": "구성-요소" }
+      ],
+      "html": "<h2 id=\"공개-저장소의-범위\">공개 저장소의 범위</h2><p>이 저장소는 비밀번호 보호 문서 사이트의 애플리케이션 구조를 보여주는 공개 데모다. 원본 학습 문서와 생성된 문서 데이터는 포함하지 않는다.</p><h2 id=\"구성-요소\">구성 요소</h2><ul><li>Cloudflare Worker 기반 인증·문서 API</li><li>KV를 이용한 문서 데이터 조회</li><li>반응형 문서 UI와 현재 위치 목차</li><li>PostgreSQL 실습 파일 다운로드 화면</li></ul>"
+    },
+    "public-document": {
+      "slug": "public-document",
+      "title": "문서 렌더링 데모",
+      "section": "01 / 문서 UI",
+      "sourcePath": "public/document-demo",
+      "excerpt": "마크다운을 HTML 문서로 바꾸고 표·코드·목차를 함께 제공하는 화면이다.",
+      "toc": [
+        { "level": 2, "text": "표와 코드", "id": "표와-코드" },
+        { "level": 2, "text": "읽기 위치", "id": "읽기-위치" }
+      ],
+      "html": "<h2 id=\"표와-코드\">표와 코드</h2><p>문서 본문은 표와 코드 블록을 읽기 좋은 형태로 표시한다.</p><div class=\"table-scroll\"><table><thead><tr><th>요소</th><th>역할</th></tr></thead><tbody><tr><td data-label=\"요소\">표</td><td data-label=\"역할\">작은 화면에서는 행 단위로 재배치한다.</td></tr><tr><td data-label=\"요소\">코드</td><td data-label=\"역할\">가로 스크롤과 복사 동작을 제공한다.</td></tr></tbody></table></div><pre><code class=\"language-sql\">SELECT item_id, item_name\nFROM demo.items\nORDER BY item_id;</code></pre><h2 id=\"읽기-위치\">읽기 위치</h2><p>오른쪽 목차는 현재 읽는 제목을 색으로 표시하고 제목을 누르면 해당 위치로 이동한다.</p>"
+    },
+    "public-practice": {
+      "slug": "public-practice",
+      "title": "PostgreSQL 실습 데모",
+      "section": "02 / 실습 UI",
+      "sourcePath": "public/practice-demo",
+      "excerpt": "실습 파일을 내려받고 데이터베이스 연결 정보를 안내하는 공개 예시다.",
+      "toc": [
+        { "level": 2, "text": "실행 순서", "id": "실행-순서" },
+        { "level": 2, "text": "데모 데이터", "id": "데모-데이터" }
+      ],
+      "html": "<h2 id=\"실행-순서\">실행 순서</h2><ol><li>Docker Compose로 PostgreSQL을 시작한다.</li><li>스키마 생성 파일을 실행한다.</li><li>샘플 데이터를 넣고 DataGrip에서 조회한다.</li></ol><h2 id=\"데모-데이터\">데모 데이터</h2><p>공개 저장소에는 개인 문서와 무관한 <code>demo.items</code> 예시만 제공한다. 실제 학습 데이터는 사용자가 별도 환경에서 준비한다.</p>"
+    }
+  },
+  "assets": {
+    "public-schema": {
+      "slug": "public-schema",
+      "title": "스키마 생성 예시",
+      "section": "02 / 실습 UI",
+      "sourcePath": "public/schema.sql",
+      "language": "sql",
+      "code": "CREATE SCHEMA IF NOT EXISTS demo;\n\nCREATE TABLE demo.items (\n    item_id   INTEGER PRIMARY KEY,\n    item_name VARCHAR(80) NOT NULL,\n    price     NUMERIC(10, 2) NOT NULL CHECK (price > 0)\n);\n"
+    },
+    "public-seed": {
+      "slug": "public-seed",
+      "title": "샘플 데이터 예시",
+      "section": "02 / 실습 UI",
+      "sourcePath": "public/seed.sql",
+      "language": "sql",
+      "code": "INSERT INTO demo.items (item_id, item_name, price) VALUES\n    (1, 'SQL notebook', 12000),\n    (2, 'Query guide', 18000);\n"
+    },
+    "public-compose": {
+      "slug": "public-compose",
+      "title": "Docker Compose 예시",
+      "section": "02 / 실습 UI",
+      "sourcePath": "public/docker-compose.yml",
+      "language": "yaml",
+      "code": "services:\n  postgres:\n    image: postgres:16-alpine\n    environment:\n      POSTGRES_DB: demo\n      POSTGRES_USER: demo\n      POSTGRES_PASSWORD: demo\n    ports:\n      - \"5432:5432\"\n"
+    }
+  }
+}

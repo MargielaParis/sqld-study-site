@@ -1,0 +1,31 @@
+{
+  "name": "sqld-study-site",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "sync": "node scripts/sync-content.mjs",
+    "dev": "vite",
+    "dev:worker": "wrangler dev --config wrangler.local.jsonc",
+    "build:site": "vite build",
+    "build": "npm run sync && npm run build:site",
+    "test": "npm run sync && node --test tests/*.test.mjs",
+    "check": "npm run sync && tsc --noEmit && npm run build:site && wrangler deploy --config wrangler.local.jsonc --dry-run",
+    "deploy": "npm run build && npm run kv:upload && wrangler deploy --config wrangler.jsonc --minify",
+    "kv:upload": "wrangler kv bulk put data/kv-bulk.json --config wrangler.jsonc --binding SQLD_DOCS --remote"
+  },
+  "dependencies": {
+    "marked": "^15.0.12",
+    "mermaid": "^11.12.2",
+    "sanitize-html": "^2.17.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260811.1",
+    "@types/node": "^24.3.0",
+    "@types/sanitize-html": "^2.16.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.3",
+    "wrangler": "^4.30.0"
+  }
+}
