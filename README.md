@@ -14,6 +14,8 @@ Cloudflare Worker와 KV를 이용한 비밀번호 보호, 문서 검색, 반응�
 - 접을 수 있는 왼쪽 탐색 메뉴와 모바일 대응 레이아웃
 - SQL·YAML 코드 보기 및 다운로드
 - PostgreSQL + Docker Compose 실습 흐름을 보여주는 데모
+- 문항별 출력 컬럼·정렬 기준과 PK·FK를 포함한 실습 스키마 참조
+- 실습 페이지에서만 지연 로드되는 PostgreSQL WASM 쿼리 실행·결과 채점기
 - Markdown 렌더링, 링크, 가독성 규칙을 확인하는 테스트
 
 ## 구조
@@ -37,6 +39,7 @@ Cloudflare Worker와 KV를 이용한 비밀번호 보호, 문서 검색, 반응�
 | UI | TypeScript, Vite, CSS |
 | Edge | Cloudflare Workers |
 | 문서 데이터 | Cloudflare KV |
+| 브라우저 SQL 실행 | PGlite (PostgreSQL WASM) |
 | Markdown | Marked, sanitize-html |
 | 검증 | Node test runner, TypeScript, Wrangler dry-run |
 
@@ -57,6 +60,15 @@ npm run dev:worker
 ```bash
 SQLD_SOURCE_ROOT=/path/to/local/sql-study npm run build
 ```
+
+`3-실습` 문제 페이지에는 `실행기 준비` 버튼이 표시된다. 버튼을 누른 뒤 PostgreSQL
+문법으로 쿼리를 작성하면 브라우저 메모리에서 초기화된 실습 데이터에 실행하고, 문제의
+정답 쿼리와 조회 결과 또는 최종 데이터 상태를 비교한다. PGlite와 WASM 파일은 이 버튼을
+누를 때만 로드되며, 페이지를 나가면 실습 DB가 사라진다.
+각 문제에는 정답 SQL에서 검증한 출력 컬럼 순서·결과 정렬·관련 테이블을 명시하고, 문제
+페이지 위쪽의 스키마 참조에서 모든 테이블·뷰 컬럼과 PK·FK 관계를 확인할 수 있다.
+브라우저에서 채점하는 구조이므로 허용된 사용자는 개발자 도구에서 정답 데이터를 확인할 수
+있다. 정답을 완전히 숨겨야 한다면 별도 서버 실행·채점 API가 필요하다.
 
 ## 검증 명령
 
@@ -90,7 +102,9 @@ npm run deploy
 ```text
 src/worker.ts              Worker 라우팅·인증·문서 API
 src/client/                문서 UI
+src/client/practice-runner.ts  브라우저 PostgreSQL 실행·결과 비교
 scripts/sync-content.mjs   원본 동기화와 공개 fixture fallback
+scripts/practice-content.mjs  실습 문제·정답 메타데이터 생성
 scripts/site-editorial.mjs 사이트 전용 문장·표현 보정
 data/public-content.json   개인정보 없는 공개 데모 데이터
 tests/                     콘텐츠·UI·보안 경계 테스트

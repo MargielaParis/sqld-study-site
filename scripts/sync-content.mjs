@@ -4,6 +4,7 @@ import path from "node:path";
 import { marked } from "marked";
 import sanitizeHtml from "sanitize-html";
 import { applySiteAssetEdits, applySiteEditorialEdits } from "./site-editorial.mjs";
+import { buildPracticeContent, decoratePracticeMarkdown } from "./practice-content.mjs";
 
 const projectRoot = process.cwd();
 const sourceRoot = await resolveSourceRoot();
@@ -21,13 +22,25 @@ async function syncVaultContent(sourceRoot) {
   await fs.mkdir(generatedRoot, { recursive: true });
 
   const files = await collectFiles(sourceRoot);
-  const markdownFiles = files.filter((file) => file.extension === ".md");
+  const markdownFiles = files.filter((file) => file.extension === ".md" && !isExcludedSiteFile(file));
   const codeFiles = files.filter((file) => [".sql", ".yml", ".yaml"].includes(file.extension));
   const parsedMarkdown = markdownFiles.map((file) => parseMarkdownFile(file));
   const linkMap = buildLinkMap(parsedMarkdown);
 
+  const assets = codeFiles.map((file) => ({
+  slug: file.slug,
+  title: assetTitle(file.relativePath, file.title),
+  section: "03 / 실습",
+  sourcePath: file.relativePath,
+  language: file.extension === ".sql" ? "sql" : "yaml",
+  code: applySiteAssetEdits(file.relativePath, sanitizeSourceText(file.body))
+  }));
+
+  const practice = await buildPracticeContent({ parsedMarkdown, assets });
+
   const docs = parsedMarkdown.map((file) => {
-  const markdown = applySiteEditorialEdits(file.relativePath, applySiteOnlyEdits(file.relativePath, sanitizeSourceText(file.body)));
+  const edited = applySiteEditorialEdits(file.relativePath, applySiteOnlyEdits(file.relativePath, sanitizeSourceText(file.body)));
+  const markdown = decoratePracticeMarkdown(edited, file.relativePath, practice);
   const rewritten = rewriteWikiLinks(markdown, linkMap);
   const html = renderMarkdown(removeDocumentHeading(rewritten));
   const toc = extractToc(rewritten);
@@ -42,15 +55,6 @@ async function syncVaultContent(sourceRoot) {
     html
   };
   });
-
-  const assets = codeFiles.map((file) => ({
-  slug: file.slug,
-  title: assetTitle(file.relativePath, file.title),
-  section: "03 / 실습",
-  sourcePath: file.relativePath,
-  language: file.extension === ".sql" ? "sql" : "yaml",
-  code: applySiteAssetEdits(file.relativePath, sanitizeSourceText(file.body))
-  }));
 
   const manifest = [
   ...docs.map(({ slug, title, section, sourcePath, excerpt: summary }) => ({
@@ -75,12 +79,14 @@ async function syncVaultContent(sourceRoot) {
   generatedAt: new Date().toISOString(),
   manifest,
   docs: Object.fromEntries(docs.map((doc) => [doc.slug, doc])),
-  assets: Object.fromEntries(assets.map((asset) => [asset.slug, asset]))
+  assets: Object.fromEntries(assets.map((asset) => [asset.slug, asset])),
+  practice
   };
 
   const bulkEntries = [
   { key: "manifest", value: JSON.stringify(manifest) },
   { key: "search", value: JSON.stringify(manifest.map(({ slug, title, section, summary, kind }) => ({ slug, title, section, summary, kind }))) },
+  { key: "practice", value: JSON.stringify(practice) },
   ...docs.map((doc) => ({ key: `doc/${doc.slug}`, value: JSON.stringify(doc) })),
   ...assets.map((asset) => ({ key: `asset/${asset.slug}`, value: JSON.stringify(asset) }))
   ];
@@ -104,6 +110,7 @@ async function syncPublicContent() {
   const bulkEntries = [
     { key: "manifest", value: JSON.stringify(content.manifest) },
     { key: "search", value: JSON.stringify(content.manifest.map(({ slug, title, section, summary, kind }) => ({ slug, title, section, summary, kind }))) },
+    { key: "practice", value: JSON.stringify(content.practice) },
     ...Object.values(content.docs).map((doc) => ({ key: `doc/${doc.slug}`, value: JSON.stringify(doc) })),
     ...Object.values(content.assets).map((asset) => ({ key: `asset/${asset.slug}`, value: JSON.stringify(asset) }))
   ];
@@ -468,6 +475,10 @@ function assetTitle(relativePath, fallback) {
     "3-실습/db/02_seed.sql": "기본 데이터 SQL",
     "3-실습/docker-compose.yml": "Docker Compose 설정"
   })[relativePath] || normalizeDisplayTitle(fallback);
+}
+
+function isExcludedSiteFile(file) {
+  return /github|깃허브/i.test(file.relativePath) || /github|깃허브/i.test(file.body);
 }
 
 function normalizeLinkKey(value) {
