@@ -7,6 +7,7 @@ export type PracticeChallenge = {
   prompt: string;
   expectedColumns: string[];
   expectedOrder: string;
+  orderRequirement: string;
   relations: string[];
   solution: string;
   mode: "result" | "script";

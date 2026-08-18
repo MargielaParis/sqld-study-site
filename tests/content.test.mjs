@@ -66,16 +66,24 @@ test("interactive practice metadata and API are available", () => {
     assert.ok(challenge.prompt, challenge.id);
     assert.ok(challenge.expectedColumns.length > 0, challenge.id);
     assert.equal(typeof challenge.expectedOrder, "string", challenge.id);
+    assert.equal(typeof challenge.orderRequirement, "string", challenge.id);
     assert.ok(Array.isArray(challenge.relations), challenge.id);
     assert.ok(challenge.solution, challenge.id);
     assert.match(challenge.sourcePath, /practice|3-실습\/3-/);
     assert.doesNotMatch(challenge.prompt, /셀프 체크|이어서 읽기/, challenge.id);
+    if (challenge.expectedOrder) {
+      assert.ok(challenge.orderRequirement, challenge.id);
+      assert.match(challenge.prompt, /결과 순서:/, challenge.id);
+    }
   }
   if (isPublicDemo) assert.equal(content.practice.challenges.length, 1);
   else assert.equal(content.practice.challenges.length, 44);
   assert.match(worker, /url\.pathname === "\/api\/practice"/);
   assert.match(client, /import\("\.\/practice-runner"\)/);
   assert.match(styles, /\.practice-runner/);
+  assert.match(client, /practice-schema-repeat/);
+  assert.match(client, /renderPracticeWorkspace\(doc\)/);
+  assert.doesNotMatch(client, /challenge\.expectedOrder/);
 });
 
 test("source paths do not expose the local machine root", () => {
@@ -189,10 +197,18 @@ test("practice wording is explicit and seed data supports every requested set", 
   assert.match(questions, /products/);
   assert.match(questions, /product_id/);
   assert.equal((questions.match(/callout-info/g) ?? []).length, 40);
+  assert.equal((questions.match(/결과 순서:/g) ?? []).length, 36);
+  assert.doesNotMatch(questions, /결과 정렬:/);
   const searchProducts = content.practice.challenges.find((challenge) => challenge.id === "6");
   assert.deepEqual(searchProducts.expectedColumns, ["product_id", "product_name", "price"]);
   assert.equal(searchProducts.expectedOrder, "product_id");
+  assert.match(searchProducts.prompt, /결과 순서: 상품 번호 오름차순으로 출력한다\./);
   assert.deepEqual(searchProducts.relations, ["products"]);
+  const orderedProducts = content.practice.challenges.find((challenge) => challenge.id === "1");
+  assert.match(orderedProducts.prompt, /상품 가격 내림차순 → 상품 번호 오름차순/);
+  const statusPriority = content.practice.challenges.find((challenge) => challenge.id === "11");
+  assert.match(statusPriority.prompt, /PAID → SHIPPED → DELIVERED → REFUNDED → CANCELLED/);
+  assert.doesNotMatch(statusPriority.prompt, /CASE\s+order_status/i);
   const products = content.practice.schema.find((relation) => relation.name === "products");
   assert.ok(products);
   assert.deepEqual(products.columns.slice(0, 4).map((column) => column.name), ["product_id", "category_id", "product_name", "price"]);
