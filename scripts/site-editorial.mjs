@@ -198,8 +198,312 @@ const rulesByPath = new Map([
   ]]
 ]);
 
+const conceptTableSupplementsByPath = new Map([
+  ["2-7_집합 연산자와 그룹 함수 - UNION ROLLUP CUBE GROUPING SETS.md", [
+    ["### CUBE", `**ROLLUP 예시 결과**
+
+| DNAME | JOB | Total Empl | Total Sal | 행의 의미 |
+|---|---|---:|---:|---|
+| ACCOUNTING | CLERK | 1 | 1,300 | 상세 집계 |
+| ACCOUNTING | MANAGER | 1 | 2,450 | 상세 집계 |
+| ACCOUNTING | PRESIDENT | 1 | 5,000 | 상세 집계 |
+| ACCOUNTING | NULL | 3 | 8,750 | 부서 소계 |
+| RESEARCH | ANALYST | 2 | 6,000 | 상세 집계 |
+| RESEARCH | CLERK | 2 | 1,900 | 상세 집계 |
+| RESEARCH | MANAGER | 1 | 2,975 | 상세 집계 |
+| RESEARCH | NULL | 5 | 10,875 | 부서 소계 |
+| SALES | CLERK | 1 | 950 | 상세 집계 |
+| SALES | MANAGER | 1 | 2,850 | 상세 집계 |
+| SALES | SALESMAN | 4 | 5,600 | 상세 집계 |
+| SALES | NULL | 6 | 9,400 | 부서 소계 |
+| NULL | NULL | 14 | 29,025 | 전체 총계 |
+
+\`ROLLUP(DNAME, JOB)\`은 상세 집계 뒤에 DNAME별 소계와 전체 총계를 붙인다.
+
+`],
+    ["### GROUPING SETS", `**CUBE에서 ROLLUP보다 추가되는 JOB별 소계**
+
+| DNAME | JOB | Total Empl | Total Sal | 행의 의미 |
+|---|---|---:|---:|---|
+| NULL | CLERK | 4 | 4,150 | 직무 소계 |
+| NULL | ANALYST | 2 | 6,000 | 직무 소계 |
+| NULL | MANAGER | 3 | 8,275 | 직무 소계 |
+| NULL | SALESMAN | 4 | 5,600 | 직무 소계 |
+| NULL | PRESIDENT | 1 | 5,000 | 직무 소계 |
+
+CUBE 결과에는 위 행과 함께 ROLLUP 예시의 상세 집계·부서 소계·전체 총계도 포함된다.
+
+`],
+    ["### GROUPING 함수 ★", `**GROUPING SETS 예시 결과**
+
+| DNAME | JOB | Total Empl | Total Sal |
+|---|---|---:|---:|
+| NULL | CLERK | 4 | 4,150 |
+| NULL | SALESMAN | 4 | 5,600 |
+| NULL | PRESIDENT | 1 | 5,000 |
+| NULL | MANAGER | 3 | 8,275 |
+| NULL | ANALYST | 2 | 6,000 |
+| ACCOUNTING | NULL | 3 | 8,750 |
+| RESEARCH | NULL | 5 | 10,875 |
+| SALES | NULL | 6 | 9,400 |
+
+\`GROUPING SETS(DNAME, JOB)\`은 DNAME별 소계와 JOB별 소계만 반환한다. 빈 괄호 \`()\`를 집합에 추가하지 않았으므로 전체 총계는 없다.
+
+`],
+    ["## 이어서 읽기", `**GROUPING 값 판별 예시**
+
+| DNAME | JOB | GROUPING(DNAME) | GROUPING(JOB) | 행의 의미 |
+|---|---|---:|---:|---|
+| SALES | CLERK | 0 | 0 | 원본 그룹 값 |
+| SALES | NULL | 0 | 1 | ROLLUP이 만든 부서 소계 |
+| NULL | NULL | 1 | 1 | ROLLUP이 만든 전체 총계 |
+
+원본 데이터의 NULL과 소계 행의 NULL을 구분할 때 \`GROUPING(컬럼)\`을 사용한다.
+
+`]
+  ]],
+  ["2-8_윈도우 함수 - 순위 집계 행 순서 비율과 ROWS RANGE.md", [
+    ["## 일반 집계 함수 (SUM, AVG, COUNT, MAX, MIN)", `**윈도우 함수 적용 결과 예시**
+
+| EMPNO | ENAME | SAL | SUM(SAL) OVER() |
+|---:|---|---:|---:|
+| 7369 | CLERK | 800 | 6,650 |
+| 7900 | JAMES | 950 | 6,650 |
+| 7876 | ADAMS | 1,100 | 6,650 |
+| 7521 | WARD | 1,250 | 6,650 |
+| 7654 | MARTIN | 1,250 | 6,650 |
+| 7934 | MILLER | 1,300 | 6,650 |
+
+집계 결과 6,650을 각 행과 함께 유지하는 것이 일반 GROUP BY 집계와의 차이다.
+
+`],
+    ["## 연산 범위: ROWS와 RANGE ★", `**출판사별 누적 집계 예시**
+
+| publisher | price | SUM 누계 | AVG 누계 | MIN | COUNT 누계 |
+|---|---:|---:|---:|---:|---:|
+| 문학동네 | 13,000 | 13,000 | 13,000 | 13,000 | 1 |
+| 문학동네 | 16,000 | 29,000 | 14,500 | 13,000 | 2 |
+| 민음사 | 8,800 | 8,800 | 8,800 | 8,800 | 1 |
+| 민음사 | 11,000 | 19,800 | 9,900 | 8,800 | 2 |
+| 열린책들 | 12,000 | 12,000 | 12,000 | 12,000 | 1 |
+| 열린책들 | 13,500 | 25,500 | 12,750 | 12,000 | 2 |
+| 열린책들 | 15,200 | 40,700 | 13,566.67 | 12,000 | 3 |
+
+같은 publisher 안에서 price 오름차순으로 계산한 결과다. ORDER BY를 빼면 SUM·AVG·COUNT도 누적값이 아니라 파티션 전체 값을 각 행에 반환한다.
+
+`],
+    ["> [!tip] 기억할 점", `**같은 데이터에 프레임을 다르게 적용한 결과**
+
+| EMPNO | ENAME | SAL | 기본 RANGE 누계 | ROWS 누계 | ROWS ... 1 FOLLOWING |
+|---:|---|---:|---:|---:|---:|
+| 7369 | CLERK | 800 | 800 | 800 | 1,750 |
+| 7900 | JAMES | 950 | 1,750 | 1,750 | 2,850 |
+| 7876 | ADAMS | 1,100 | 2,850 | 2,850 | 4,100 |
+| 7521 | WARD | 1,250 | 5,350 | 4,100 | 5,350 |
+| 7654 | MARTIN | 1,250 | 5,350 | 5,350 | 6,650 |
+| 7934 | MILLER | 1,300 | 6,650 | 6,650 | 6,650 |
+
+기본 RANGE는 SAL이 같은 WARD와 MARTIN을 한 범위로 묶는다. ROWS는 실제 행 위치를 기준으로 하므로 두 행의 누계가 다르다.
+
+`],
+    ["### FIRST_VALUE, LAST_VALUE (SQL Server 지원 X)", `**LAG·LEAD 결과 예시**
+
+| ENAME | HIREDATE | SAL | LAG(SAL) | LEAD(SAL) |
+|---|---|---:|---:|---:|
+| ALLEN | 1981-02-20 | 1,600 | NULL | 1,250 |
+| WARD | 1981-02-22 | 1,250 | 1,600 | 1,500 |
+| TURNER | 1981-09-08 | 1,500 | 1,250 | 1,350 |
+| MARTIN | 1981-09-28 | 1,350 | 1,500 | NULL |
+
+첫 행의 LAG와 마지막 행의 LEAD는 가져올 행이 없으므로 NULL이다.
+
+`],
+    ["### NTILE(N) (SQL Server 지원 X)", `**FIRST_VALUE·LAST_VALUE 결과 예시**
+
+| ENAME | DEPTNO | SAL | FIRST_MIN | FIRST_MAX | LAST_DEFAULT | LAST_FULL |
+|---|---:|---:|---:|---:|---:|---:|
+| ALLEN | 10 | 1,300 | 1,300 | 2,750 | 1,300 | 2,750 |
+| WARD | 10 | 1,500 | 1,300 | 2,750 | 1,500 | 2,750 |
+| TURNER | 10 | 2,750 | 1,300 | 2,750 | 2,750 | 2,750 |
+| MARTIN | 20 | 920 | 920 | 1,800 | 920 | 1,800 |
+| SCOTT | 20 | 1,800 | 920 | 1,800 | 1,800 | 1,800 |
+
+\`LAST_DEFAULT\`는 \`ORDER BY SAL\`의 기본 프레임이 현재 행에서 끝나므로 현재 SAL과 같다. \`LAST_FULL\`은 끝을 \`UNBOUNDED FOLLOWING\`으로 지정한 파티션의 마지막 값이다.
+
+`],
+    ["## 비율 관련 함수 (SQL Server 지원 X) ★", `**NTILE(3) 결과 예시**
+
+| 정렬 순서 | 이름 | 점수 | 그룹 번호 |
+|---:|---|---:|---:|
+| 1 | A | 100 | 1 |
+| 2 | B | 90 | 1 |
+| 3 | C | 80 | 1 |
+| 4 | D | 70 | 2 |
+| 5 | E | 60 | 2 |
+| 6 | F | 50 | 3 |
+| 7 | G | 40 | 3 |
+
+7행을 3그룹으로 나누면 나머지 1행이 앞 그룹에 배정되어 3·2·2행이 된다.
+
+`],
+    ["### PERCENT_RANK", `**RATIO_TO_REPORT 결과 예시**
+
+| ENAME | SAL | RATIO |
+|---|---:|---:|
+| ALLEN | 1,600 | 0.29 |
+| WARD | 1,250 | 0.22 |
+| TURNER | 1,250 | 0.22 |
+| MARTIN | 1,500 | 0.27 |
+| **합계** | **5,600** | **1.00** |
+
+\`RATIO\`는 각 SAL을 전체 5,600으로 나눈 값이다.
+
+`],
+    ["## 윈도우 함수 종류 정리", `**PERCENT_RANK·CUME_DIST 결과 비교**
+
+| DEPTNO | ENAME | SAL | PERCENT_RANK | CUME_DIST |
+|---:|---|---:|---:|---:|
+| 10 | KING | 5,000 | 0 | 0.3333 |
+| 10 | CLARK | 2,400 | 0.5 | 0.6667 |
+| 10 | MILLER | 1,300 | 1 | 1.0000 |
+| 20 | SCOTT | 3,000 | 0 | 0.4000 |
+| 20 | FORD | 3,000 | 0 | 0.4000 |
+| 20 | JONES | 2,975 | 0.5 | 0.6000 |
+| 20 | ADAMS | 1,100 | 0.75 | 0.8000 |
+| 20 | SMITH | 800 | 1 | 1.0000 |
+
+두 함수 모두 \`PARTITION BY DEPTNO ORDER BY SAL DESC\`를 적용한 결과다. 동률인 SCOTT와 FORD는 같은 RANK와 누적 분포를 가진다.
+
+`]
+  ]],
+  ["2-9_TOP N 계층형 질의 PIVOT 정규 표현식.md", [
+    ["### 상위 n ~ m까지 뽑기", `**올바른 TOP 3 결과**
+
+| ENAME | SAL |
+|---|---:|
+| KING | 5,000 |
+| SCOTT | 3,000 |
+| FORD | 3,000 |
+
+인라인 뷰에서 SAL 내림차순 정렬을 끝낸 뒤 바깥 쿼리가 세 행을 선택한다.
+
+`],
+    ["## 계층형 질의 (Hierarchical Query) ★", `**TOP 2와 WITH TIES 결과 비교**
+
+| 쿼리 | 반환 행 |
+|---|---|
+| \`TOP 2\` | KING 5,000 / SCOTT 3,000 |
+| \`TOP 2 WITH TIES\` | KING 5,000 / SCOTT 3,000 / FORD 3,000 |
+
+WITH TIES는 두 번째 행과 같은 SAL인 FORD까지 포함한다. 동률 행 사이의 순서를 고정하려면 ORDER BY에 추가 기준을 지정한다.
+
+`],
+    ["### PRIOR의 위치가 전개 방향을 결정한다 ★", `**DEPT 예시 데이터와 순방향 전개 결과**
+
+| DCODE | DNAME | PDEPT | LEVEL |
+|---|---|---|---:|
+| 0001 | 사장실 | NULL | 1 |
+| 1000 | 경영지원부 | 0001 | 2 |
+| 1001 | 재무관리 | 1000 | 3 |
+| 1002 | 총무 | 1000 | 3 |
+| 1003 | 기술부 | 0001 | 2 |
+| 1004 | H/W지원 | 1003 | 3 |
+| 1005 | S/W지원 | 1003 | 3 |
+
+PDEPT는 같은 테이블의 상위 부서 DCODE를 가리킨다. \`START WITH PDEPT IS NULL CONNECT BY PRIOR DCODE = PDEPT\`로 전개하면 위 LEVEL이 계산된다.
+
+`],
+    ["### CONNECT BY 절 조건 vs WHERE 절 조건 ★", `**PRIOR 방향에 따른 차이**
+
+| 연결 조건 | 사장실에서 시작한 결과 |
+|---|---|
+| \`PRIOR DCODE = PDEPT\` | 사장실 → 경영지원부·기술부 → 하위 부서 |
+| \`DCODE = PRIOR PDEPT\` | 사장실만 반환 |
+
+두 번째 조건은 사장실의 PDEPT인 NULL과 같은 DCODE를 찾기 때문에 다음 행으로 이어지지 않는다.
+
+`],
+    ["### 계층형 질의 가상 컬럼", `**조건 위치에 따른 결과 비교**
+
+| 조건 위치 | DCODE | DNAME | AREA | LEVEL |
+|---|---|---|---|---:|
+| CONNECT BY | 0001 | 사장실 | 포항본사 | 1 |
+| CONNECT BY | 1000 | 경영지원부 | 서울지사 | 2 |
+| CONNECT BY | 1001 | 재무관리 | 서울지사 | 3 |
+| CONNECT BY | 1002 | 총무 | 서울지사 | 3 |
+| WHERE | 1000 | 경영지원부 | 서울지사 | 2 |
+| WHERE | 1001 | 재무관리 | 서울지사 | 3 |
+| WHERE | 1002 | 총무 | 서울지사 | 3 |
+
+CONNECT BY의 AREA 조건은 연결할 자식을 제한하므로 시작 행인 사장실은 남는다. WHERE 조건은 전개가 끝난 결과를 필터링하므로 사장실이 제외된다.
+
+`],
+    ["## 셀프 조인", `**계층형 가상 함수 결과 예시**
+
+| 루트사원 | 경로 | 사원 | 관리자 |
+|---|---|---|---|
+| A | /A | A | NULL |
+| A | /A/B | B | A |
+| A | /A/C | C | A |
+| A | /A/C/D | D | C |
+
+\`CONNECT_BY_ROOT\`는 모든 행에 루트 A를 표시하고, \`SYS_CONNECT_BY_PATH\`는 루트부터 현재 행까지의 경로를 만든다.
+
+`],
+    ["| 연산 | 방향 |", `**Long Data 입력 예시**
+
+| id | year | sales |
+|---:|---:|---:|
+| 1 | 2022 | 100 |
+| 1 | 2023 | 120 |
+| 2 | 2022 | 150 |
+| 2 | 2023 | 130 |
+
+**같은 데이터를 Wide Data로 바꾼 결과**
+
+| id | 2022 | 2023 |
+|---:|---:|---:|
+| 1 | 100 | 120 |
+| 2 | 150 | 130 |
+
+`],
+    ["## 정규 표현식", `**PIVOT 결과**
+
+| JOB | ACCOUNTING | RESEARCH | SALES |
+|---|---:|---:|---:|
+| CLERK | 0 | 1 | 0 |
+| SALESMAN | 1 | 0 | 3 |
+| MANAGER | 1 | 1 | 1 |
+| ANALYST | 0 | 2 | 0 |
+
+**위 결과를 UNPIVOT한 결과**
+
+| JOB | DEPARTMENT | EMP_COUNT |
+|---|---|---:|
+| CLERK | ACCOUNTING | 0 |
+| CLERK | RESEARCH | 1 |
+| CLERK | SALES | 0 |
+| SALESMAN | ACCOUNTING | 1 |
+| SALESMAN | RESEARCH | 0 |
+| SALESMAN | SALES | 3 |
+| MANAGER | ACCOUNTING | 1 |
+| MANAGER | RESEARCH | 1 |
+| MANAGER | SALES | 1 |
+| ANALYST | ACCOUNTING | 0 |
+| ANALYST | RESEARCH | 2 |
+| ANALYST | SALES | 0 |
+
+PIVOT은 부서 값을 열로 펼치고, UNPIVOT은 각 부서 열을 다시 행으로 쌓는다.
+
+`]
+  ]]
+]);
+
 export function applySiteEditorialEdits(relativePath, markdown) {
   let result = applyStructuralEdits(relativePath, markdown);
+  for (const [before, supplement] of conceptTableSupplementsByPath.get(relativePath) ?? []) {
+    result = insertBeforeRequired(result, before, supplement, relativePath);
+  }
   for (const [from, to] of rulesByPath.get(relativePath) ?? []) {
     result = replaceRequired(result, from, to, relativePath);
   }
@@ -253,6 +557,12 @@ function replaceRequired(source, from, to, relativePath) {
   if (source[start - 1] === "`") start -= 1;
   if (source[end] === "`") end += 1;
   return `${source.slice(0, start)}${to}${source.slice(end)}`;
+}
+
+function insertBeforeRequired(source, before, supplement, relativePath) {
+  const index = source.indexOf(before);
+  if (index < 0) throw new Error(`사이트 표 보강 위치를 찾지 못했습니다: ${relativePath} / ${before}`);
+  return `${source.slice(0, index)}${supplement}${source.slice(index)}`;
 }
 
 function transformProse(markdown, transform) {

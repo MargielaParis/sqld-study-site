@@ -5,6 +5,7 @@ import test from "node:test";
 const content = JSON.parse(await fs.readFile(new URL("../data/content.json", import.meta.url), "utf8"));
 const styles = await fs.readFile(new URL("../src/client/styles.css", import.meta.url), "utf8");
 const client = await fs.readFile(new URL("../src/client/main.ts", import.meta.url), "utf8");
+const worker = await fs.readFile(new URL("../src/worker.ts", import.meta.url), "utf8");
 const isPublicDemo = content.manifest.some((item) => item.sourcePath.startsWith("public/"));
 
 test("all SQLD source files are represented", () => {
@@ -47,12 +48,46 @@ test("code assets are available for download/view", () => {
   }
 });
 
+test("interactive practice metadata and API are available", () => {
+  assert.ok(content.practice);
+  assert.equal(content.practice.version, 2);
+  assert.ok(content.practice.setup.schemaSlug);
+  assert.ok(content.practice.setup.seedSlug);
+  assert.ok(content.practice.schema.length > 0);
+  assert.ok(content.practice.challenges.length > 0);
+  assert.equal(new Set(content.practice.challenges.map((challenge) => challenge.id)).size, content.practice.challenges.length);
+  for (const relation of content.practice.schema) {
+    assert.match(relation.kind, /^(table|view)$/);
+    assert.ok(relation.name);
+    assert.ok(relation.columns.length > 0, relation.name);
+    assert.equal(new Set(relation.columns.map((column) => column.name)).size, relation.columns.length, relation.name);
+  }
+  for (const challenge of content.practice.challenges) {
+    assert.ok(challenge.prompt, challenge.id);
+    assert.ok(challenge.expectedColumns.length > 0, challenge.id);
+    assert.equal(typeof challenge.expectedOrder, "string", challenge.id);
+    assert.ok(Array.isArray(challenge.relations), challenge.id);
+    assert.ok(challenge.solution, challenge.id);
+    assert.match(challenge.sourcePath, /practice|3-실습\/3-/);
+    assert.doesNotMatch(challenge.prompt, /셀프 체크|이어서 읽기/, challenge.id);
+  }
+  if (isPublicDemo) assert.equal(content.practice.challenges.length, 1);
+  else assert.equal(content.practice.challenges.length, 44);
+  assert.match(worker, /url\.pathname === "\/api\/practice"/);
+  assert.match(client, /import\("\.\/practice-runner"\)/);
+  assert.match(styles, /\.practice-runner/);
+});
+
 test("source paths do not expose the local machine root", () => {
   const serialized = JSON.stringify(content);
   assert.equal(serialized.includes("/Users/"), false);
   assert.equal(serialized.includes("file:///"), false);
   assert.equal(serialized.includes("20-Learning/SQLD"), false);
   assert.equal(serialized.includes("이 노트가 있는 `3-실습` 디렉터리"), false);
+});
+
+test("GitHub deployment notes stay outside the study site", () => {
+  assert.doesNotMatch(JSON.stringify(content), /github|깃허브/i);
 });
 
 test("site-only practice setup is location-independent and explains bootstrap order", () => {
@@ -105,6 +140,41 @@ test("reviewed factual errors are absent from site content", () => {
   ]) assert.equal(serialized.includes(phrase), false, phrase);
 });
 
+test("concept explanations include the input and result tables they refer to", () => {
+  if (isPublicDemo) return;
+  const expectations = [
+    {
+      prefix: "2-7_",
+      minimumTables: 7,
+      phrases: ["ROLLUP 예시 결과", "CUBE에서 ROLLUP보다 추가되는 JOB별 소계", "GROUPING 값 판별 예시"]
+    },
+    {
+      prefix: "2-8_",
+      minimumTables: 18,
+      phrases: ["같은 데이터에 프레임을 다르게 적용한 결과", "LAG·LEAD 결과 예시", "PERCENT_RANK·CUME_DIST 결과 비교"]
+    },
+    {
+      prefix: "2-9_",
+      minimumTables: 23,
+      phrases: ["올바른 TOP 3 결과", "DEPT 예시 데이터와 순방향 전개 결과", "PIVOT 결과"]
+    }
+  ];
+
+  for (const { prefix, minimumTables, phrases } of expectations) {
+    const doc = Object.values(content.docs).find((candidate) => candidate.sourcePath.startsWith(prefix));
+    assert.ok(doc, prefix);
+    const tableCount = (doc.html.match(/<table>/g) ?? []).length;
+    const wrapperCount = (doc.html.match(/class="table-scroll"/g) ?? []).length;
+    assert.ok(tableCount >= minimumTables, `${prefix}: ${tableCount}`);
+    assert.equal(wrapperCount, tableCount, prefix);
+    for (const phrase of phrases) assert.match(doc.html, new RegExp(phrase), `${prefix}: ${phrase}`);
+  }
+
+  const windowFunctions = Object.values(content.docs).find((candidate) => candidate.sourcePath.startsWith("2-8_"));
+  assert.match(windowFunctions.html, /ADAMS[\s\S]*?2,850[\s\S]*?2,850[\s\S]*?4,100/);
+  assert.match(windowFunctions.html, /MARTIN[\s\S]*?1,350[\s\S]*?1,500[\s\S]*?NULL/);
+});
+
 test("practice wording is explicit and seed data supports every requested set", () => {
   if (isPublicDemo) return;
   const questions = Object.values(content.docs)
@@ -115,6 +185,18 @@ test("practice wording is explicit and seed data supports every requested set", 
   assert.match(questions, /REFUNDED/);
   assert.match(questions, /기본 데이터에서 1명 반환/);
   assert.match(questions, /unit_price, order_id, line_no/);
+  assert.match(questions, /practice-schema-reference/);
+  assert.match(questions, /products/);
+  assert.match(questions, /product_id/);
+  assert.equal((questions.match(/callout-info/g) ?? []).length, 40);
+  const searchProducts = content.practice.challenges.find((challenge) => challenge.id === "6");
+  assert.deepEqual(searchProducts.expectedColumns, ["product_id", "product_name", "price"]);
+  assert.equal(searchProducts.expectedOrder, "product_id");
+  assert.deepEqual(searchProducts.relations, ["products"]);
+  const products = content.practice.schema.find((relation) => relation.name === "products");
+  assert.ok(products);
+  assert.deepEqual(products.columns.slice(0, 4).map((column) => column.name), ["product_id", "category_id", "product_name", "price"]);
+  assert.deepEqual(products.columns.find((column) => column.name === "category_id").references, { table: "categories", column: "category_id" });
   const seed = Object.values(content.assets).find((asset) => asset.sourcePath === "3-실습/db/02_seed.sql");
   assert.ok(seed);
   assert.match(seed.code, /\(16, 12, 304/);

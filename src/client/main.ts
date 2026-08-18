@@ -1,4 +1,5 @@
 import "./styles.css";
+import type { PracticeChallenge, PracticeCheckResult } from "./practice-runner";
 
 type ManifestItem = {
   slug: string;
@@ -20,23 +21,37 @@ type Asset = ManifestItem & {
   code: string;
 };
 
+type PracticeBundle = {
+  version: number;
+  setup: {
+    schemaSlug: string;
+    seedSlug: string;
+  };
+  challenges: PracticeChallenge[];
+};
+
 const state: {
   authenticated: boolean;
   manifest: ManifestItem[];
   docs: Map<string, Doc>;
   assets: Map<string, Asset>;
+  practice: PracticeBundle | null;
+  practicePromise: Promise<PracticeBundle | null> | null;
   query: string;
 } = {
   authenticated: false,
   manifest: [],
   docs: new Map(),
   assets: new Map(),
+  practice: null,
+  practicePromise: null,
   query: ""
 };
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 const SIDEBAR_STORAGE_KEY = "sqld-sidebar-collapsed";
 let clearTocTracking = () => {};
+let cleanupPracticeRunner = () => {};
 
 document.addEventListener("click", handleNavigation);
 document.addEventListener("submit", handleSubmit);
@@ -150,6 +165,8 @@ function renderShell() {
 }
 
 async function route() {
+  cleanupPracticeRunner();
+  cleanupPracticeRunner = () => {};
   clearTocTracking();
   const path = window.location.pathname;
   const match = path.match(/^\/docs\/(.+)$/);
@@ -247,6 +264,7 @@ async function renderDoc(item: ManifestItem) {
         <div class="doc-body">
           <header class="doc-header"><p class="eyebrow">${escapeHtml(doc.section)}</p><h1 class="${doc.title.length >= 48 ? "long-title" : ""}">${escapeHtml(doc.title)}</h1><p class="doc-excerpt">${escapeHtml(doc.excerpt || "SQLD 학습 노트")}</p></header>
           <div class="prose">${doc.html}</div>
+          ${isPracticeDoc(doc) ? renderPracticeRunner() : ""}
           <nav class="pager" aria-label="문서 이동">
             ${previous ? `<a href="/docs/${encodeURIComponent(previous.slug)}" data-nav><small>이전 문서</small><strong>← ${escapeHtml(previous.title)}</strong></a>` : "<span></span>"}
             ${next ? `<a href="/docs/${encodeURIComponent(next.slug)}" data-nav class="pager-next"><small>다음 문서</small><strong>${escapeHtml(next.title)} →</strong></a>` : ""}
@@ -257,9 +275,210 @@ async function renderDoc(item: ManifestItem) {
     </article>
   `;
   highlightCode();
+  if (isPracticeDoc(doc)) setupPracticeRunner(doc.sourcePath);
   updateActiveNav(item.slug);
   setupTocTracking();
   scrollToRoutePosition();
+}
+
+function isPracticeDoc(doc: Doc) {
+  return (doc.sourcePath.startsWith("3-실습/3-") && doc.sourcePath.includes("실습 문제")) || doc.sourcePath === "public/practice-demo";
+}
+
+function renderPracticeRunner() {
+  return `
+    <section class="practice-runner" data-practice-runner aria-labelledby="practice-runner-title">
+      <div class="practice-runner-head">
+        <div>
+          <p class="eyebrow">브라우저 SQL 실습</p>
+          <h2 id="practice-runner-title">이 페이지의 문제를 바로 실행하기</h2>
+          <p>PostgreSQL 엔진과 실습 데이터를 브라우저 안에 준비해 쿼리를 실행하고 결과를 정답과 비교합니다.</p>
+        </div>
+        <span class="practice-badge">POSTGRESQL / WASM</span>
+      </div>
+      <div class="practice-runner-gate" data-practice-gate>
+        <div>
+          <strong>실행기를 준비하면 이 페이지에서 바로 풀 수 있습니다.</strong>
+          <span>실습 DB는 메모리에서만 동작하며 페이지를 나가면 사라집니다.</span>
+        </div>
+        <button class="primary-button" type="button" data-practice-start>실행기 준비</button>
+      </div>
+    </section>
+  `;
+}
+
+function setupPracticeRunner(sourcePath: string) {
+  const root = document.querySelector<HTMLElement>("[data-practice-runner]");
+  const startButton = root?.querySelector<HTMLButtonElement>("[data-practice-start]");
+  if (!root || !startButton) return;
+  startButton.addEventListener("click", () => void initializePracticeRunner(root, sourcePath));
+}
+
+async function initializePracticeRunner(root: HTMLElement, sourcePath: string) {
+  const gate = root.querySelector<HTMLElement>("[data-practice-gate]");
+  const startButton = root.querySelector<HTMLButtonElement>("[data-practice-start]");
+  if (!gate || !startButton || root.dataset.ready === "true") return;
+
+  root.dataset.ready = "loading";
+  startButton.disabled = true;
+  startButton.textContent = "PostgreSQL 준비 중…";
+  try {
+    const practice = await fetchPractice();
+    if (!practice) throw new Error("실습 문제 정보를 불러오지 못했습니다.");
+    const challenges = practice.challenges.filter((challenge) => challenge.sourcePath === sourcePath);
+    if (!challenges.length) throw new Error("이 페이지에 연결된 실습 문제가 없습니다.");
+
+    const schema = await fetchAsset(practice.setup.schemaSlug);
+    const seed = await fetchAsset(practice.setup.seedSlug);
+    if (!schema || !seed) throw new Error("실습 DB 초기화 파일을 불러오지 못했습니다.");
+
+    const { createBrowserPracticeRunner } = await import("./practice-runner");
+    const runtime = await createBrowserPracticeRunner(schema.code, seed.code);
+    cleanupPracticeRunner = () => {
+      void runtime.close().catch(() => {});
+    };
+    root.dataset.ready = "true";
+    renderPracticeEditor(root, challenges, runtime);
+  } catch (error) {
+    root.dataset.ready = "";
+    gate.classList.add("is-error");
+    gate.innerHTML = `<div><strong>실행기를 준비하지 못했습니다.</strong><span>${escapeHtml(errorMessage(error))}</span></div><button class="secondary-button" type="button" data-practice-retry>다시 시도</button>`;
+    gate.querySelector<HTMLButtonElement>("[data-practice-retry]")?.addEventListener("click", () => {
+      gate.classList.remove("is-error");
+      gate.innerHTML = `<div><strong>실행기를 준비하면 이 페이지에서 바로 풀 수 있습니다.</strong><span>실습 DB는 메모리에서만 동작하며 페이지를 나가면 사라집니다.</span></div><button class="primary-button" type="button" data-practice-start>실행기 준비</button>`;
+      setupPracticeRunner(sourcePath);
+    });
+  }
+}
+
+function renderPracticeEditor(
+  root: HTMLElement,
+  challenges: PracticeChallenge[],
+  runtime: { check: (challenge: PracticeChallenge, source: string) => Promise<PracticeCheckResult> }
+) {
+  root.innerHTML = `
+    <div class="practice-runner-head">
+      <div>
+        <p class="eyebrow">브라우저 SQL 실습</p>
+        <h2 id="practice-runner-title">문제를 선택하고 실행해 보세요</h2>
+        <p>정답 SQL은 화면에 노출하지 않고, 실행 결과만 비교합니다. 매번 초기 데이터에서 다시 시작합니다.</p>
+      </div>
+      <span class="practice-badge">POSTGRESQL / WASM</span>
+    </div>
+    <div class="practice-toolbar">
+      <label for="practice-challenge">문제 선택</label>
+      <select id="practice-challenge" data-practice-select>
+        ${challenges.map((challenge) => `<option value="${escapeHtml(challenge.id)}">${escapeHtml(challenge.title)}</option>`).join("")}
+      </select>
+      <span class="practice-count">${challenges.length}문제 / 결과 비교</span>
+    </div>
+    <div class="practice-prompt">
+      <p class="eyebrow" data-practice-number></p>
+      <h3 data-practice-title></h3>
+      <p data-practice-prompt></p>
+      <dl class="practice-contract" data-practice-contract></dl>
+    </div>
+    <label class="practice-editor-label" for="practice-sql">SQL 입력</label>
+    <textarea id="practice-sql" class="practice-editor" data-practice-input spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+    <div class="practice-actions">
+      <button class="primary-button" type="button" data-practice-run>쿼리 실행·정답 확인</button>
+      <button class="secondary-button" type="button" data-practice-clear>입력 비우기</button>
+      <span class="practice-status is-ready" data-practice-status role="status">실행하면 이 자리에서 결과를 확인합니다.</span>
+    </div>
+    <div class="practice-result" data-practice-result hidden></div>
+  `;
+
+  const select = root.querySelector("[data-practice-select]") as unknown as HTMLSelectElement;
+  const input = root.querySelector<HTMLTextAreaElement>("[data-practice-input]")!;
+  const title = root.querySelector<HTMLElement>("[data-practice-title]")!;
+  const number = root.querySelector<HTMLElement>("[data-practice-number]")!;
+  const prompt = root.querySelector<HTMLElement>("[data-practice-prompt]")!;
+  const contract = root.querySelector<HTMLElement>("[data-practice-contract]")!;
+  const runButton = root.querySelector<HTMLButtonElement>("[data-practice-run]")!;
+  const clearButton = root.querySelector<HTMLButtonElement>("[data-practice-clear]")!;
+  const status = root.querySelector<HTMLElement>("[data-practice-status]")!;
+  const result = root.querySelector<HTMLElement>("[data-practice-result]")!;
+
+  const currentChallenge = () => challenges.find((challenge) => challenge.id === select.value) ?? challenges[0];
+  const selectChallenge = () => {
+    const challenge = currentChallenge();
+    number.textContent = `문제 ${challenge.number}`;
+    title.textContent = challenge.title.replace(/^\S+\.\s*/, "");
+    prompt.innerHTML = escapeHtml(challenge.prompt).replace(/\n/g, "<br />");
+    contract.innerHTML = `
+      <div><dt>결과 컬럼</dt><dd>${challenge.expectedColumns.map((column) => `<code>${escapeHtml(column)}</code>`).join("")}</dd></div>
+      ${challenge.expectedOrder ? `<div><dt>결과 정렬</dt><dd><code>${escapeHtml(challenge.expectedOrder)}</code></dd></div>` : ""}
+      ${challenge.relations.length ? `<div><dt>관련 테이블·뷰</dt><dd>${challenge.relations.map((relation) => `<code>${escapeHtml(relation)}</code>`).join("")}</dd></div>` : ""}
+    `;
+    input.value = buildPracticeStarter(challenge);
+    result.hidden = true;
+    result.innerHTML = "";
+    status.className = "practice-status is-ready";
+    status.textContent = "실행하면 이 자리에서 결과를 확인합니다.";
+  };
+
+  select.addEventListener("change", selectChallenge);
+  clearButton.addEventListener("click", () => {
+    input.value = buildPracticeStarter(currentChallenge());
+    input.focus();
+  });
+  runButton.addEventListener("click", async () => {
+    const challenge = currentChallenge();
+    runButton.disabled = true;
+    select.disabled = true;
+    status.className = "practice-status is-running";
+    status.textContent = "실행 중…";
+    result.hidden = true;
+    try {
+      const checked = await runtime.check(challenge, input.value);
+      renderPracticeResult(result, status, checked);
+    } finally {
+      runButton.disabled = false;
+      select.disabled = false;
+    }
+  });
+  selectChallenge();
+}
+
+function buildPracticeStarter(challenge: PracticeChallenge) {
+  const searchPath = challenge.solution.match(/^\s*(SET\s+search_path\s+TO\s+[^;]+;)/i)?.[1];
+  return searchPath ? `${searchPath}\n\n` : "";
+}
+
+function renderPracticeResult(result: HTMLElement, status: HTMLElement, checked: PracticeCheckResult) {
+  status.className = `practice-status is-${checked.status}`;
+  status.textContent = `${checked.message} (${checked.elapsedMs}ms)`;
+  const table = checked.fields.length
+    ? `<div class="practice-result-table"><table><thead><tr>${checked.fields.map((field) => `<th>${escapeHtml(field)}</th>`).join("")}</tr></thead><tbody>${checked.rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(formatPracticeCell(cell))}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${checked.fields.length}">조회 결과가 0행입니다.</td></tr>`}</tbody></table></div>`
+    : "";
+  const rowSummary = checked.expectedRowCount === undefined ? "" : `<span>정답 기준 ${checked.expectedRowCount}행 · 내 결과 ${checked.rows.length}행</span>`;
+  result.innerHTML = `<div class="practice-result-card is-${checked.status}"><strong>${escapeHtml(checked.status === "correct" ? "정답" : checked.status === "wrong" ? "결과 확인" : "실행 오류")}</strong>${rowSummary}${table}${checked.status === "error" ? `<pre>${escapeHtml(checked.message)}</pre>` : ""}</div>`;
+  result.hidden = false;
+}
+
+function formatPracticeCell(value: unknown) {
+  if (value === null || value === undefined) return "NULL";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+async function fetchPractice() {
+  if (state.practice) return state.practice;
+  let pending = state.practicePromise;
+  if (!pending) {
+    pending = fetch("/api/practice", { credentials: "same-origin" }).then(async (response) => {
+      if (!response.ok) return null;
+      return await response.json() as PracticeBundle;
+    });
+    state.practicePromise = pending;
+  }
+  try {
+    const practice = await pending;
+    state.practice = practice;
+    return practice;
+  } finally {
+    if (state.practicePromise === pending) state.practicePromise = null;
+  }
 }
 
 async function renderAsset(item: ManifestItem) {
@@ -470,4 +689,8 @@ function escapeHtml(value: string) {
     '"': "&quot;",
     "'": "&#39;"
   }[character]!));
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }

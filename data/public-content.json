@@ -83,9 +83,10 @@
       "excerpt": "실습 파일을 내려받고 데이터베이스 연결 정보를 안내하는 공개 예시다.",
       "toc": [
         { "level": 2, "text": "실행 순서", "id": "실행-순서" },
-        { "level": 2, "text": "데모 데이터", "id": "데모-데이터" }
+        { "level": 2, "text": "데모 데이터", "id": "데모-데이터" },
+        { "level": 2, "text": "스키마 빠른 참조", "id": "스키마-빠른-참조" }
       ],
-      "html": "<h2 id=\"실행-순서\">실행 순서</h2><ol><li>Docker Compose로 PostgreSQL을 시작한다.</li><li>스키마 생성 파일을 실행한다.</li><li>샘플 데이터를 넣고 DataGrip에서 조회한다.</li></ol><h2 id=\"데모-데이터\">데모 데이터</h2><p>공개 저장소에는 개인 문서와 무관한 <code>demo.items</code> 예시만 제공한다. 실제 학습 데이터는 사용자가 별도 환경에서 준비한다.</p>"
+      "html": "<h2 id=\"실행-순서\">실행 순서</h2><ol><li>Docker Compose로 PostgreSQL을 시작한다.</li><li>스키마 생성 파일을 실행한다.</li><li>샘플 데이터를 넣고 DataGrip에서 조회한다.</li></ol><h2 id=\"데모-데이터\">데모 데이터</h2><p>공개 저장소에는 개인 문서와 무관한 <code>demo.items</code> 예시만 제공한다. 실제 학습 데이터는 사용자가 별도 환경에서 준비한다.</p><h2 id=\"스키마-빠른-참조\">스키마 빠른 참조</h2><details class=\"practice-schema-reference\"><summary><span>테이블 1개 · 뷰 0개</span><strong>컬럼 사전 펼치기</strong></summary><div class=\"practice-schema-grid\"><div class=\"practice-schema-relation\"><div class=\"practice-schema-relation-head\"><code>items</code><span>TABLE</span></div><ul><li><code>item_id</code><span>integer</span><strong>PK</strong></li><li><code>item_name</code><span>character varying(80)</span></li><li><code>price</code><span>numeric(10,2)</span></li></ul></div></div></details>"
     }
   },
   "assets": {
@@ -113,5 +114,37 @@
       "language": "yaml",
       "code": "services:\n  postgres:\n    image: postgres:16-alpine\n    environment:\n      POSTGRES_DB: demo\n      POSTGRES_USER: demo\n      POSTGRES_PASSWORD: demo\n    ports:\n      - \"5432:5432\"\n"
     }
+  },
+  "practice": {
+    "version": 2,
+    "setup": {
+      "schemaSlug": "public-schema",
+      "seedSlug": "public-seed"
+    },
+    "schema": [
+      {
+        "name": "items",
+        "kind": "table",
+        "columns": [
+          { "name": "item_id", "type": "integer", "nullable": false, "primaryKey": true, "references": null },
+          { "name": "item_name", "type": "character varying(80)", "nullable": false, "primaryKey": false, "references": null },
+          { "name": "price", "type": "numeric(10,2)", "nullable": false, "primaryKey": false, "references": null }
+        ]
+      }
+    ],
+    "challenges": [
+      {
+        "id": "demo-1",
+        "number": "DEMO-1",
+        "title": "DEMO-1. 가격순 상품 조회",
+        "prompt": "demo.items에서 가격이 15,000원 이상인 상품의 이름과 가격을 가격 내림차순으로 조회하라.",
+        "expectedColumns": ["item_name", "price"],
+        "expectedOrder": "price DESC, item_id",
+        "relations": ["items"],
+        "solution": "SELECT item_name, price\nFROM demo.items\nWHERE price >= 15000\nORDER BY price DESC, item_id;",
+        "mode": "result",
+        "sourcePath": "public/practice-demo"
+      }
+    ]
   }
 }

@@ -9,12 +9,13 @@
     "dev:worker": "wrangler dev --config wrangler.local.jsonc",
     "build:site": "vite build",
     "build": "npm run sync && npm run build:site",
-    "test": "npm run sync && node --test tests/*.test.mjs",
+    "test": "npm run sync && node --test --import tsx tests/*.test.mjs tests/*.test.ts",
     "check": "npm run sync && tsc --noEmit && npm run build:site && wrangler deploy --config wrangler.local.jsonc --dry-run",
     "deploy": "npm run build && npm run kv:upload && wrangler deploy --config wrangler.jsonc --minify",
     "kv:upload": "wrangler kv bulk put data/kv-bulk.json --config wrangler.jsonc --binding SQLD_DOCS --remote"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.5",
     "marked": "^15.0.12",
     "mermaid": "^11.12.2",
     "sanitize-html": "^2.17.0"

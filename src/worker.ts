@@ -91,6 +91,10 @@ async function api(request: Request, env: Env, url: URL) {
     return jsonResponse(await getJson(env.SQLD_DOCS, "search", localContent.manifest));
   }
 
+  if (url.pathname === "/api/practice") {
+    return jsonResponse(await getJson(env.SQLD_DOCS, "practice", localContent.practice));
+  }
+
   const documentMatch = url.pathname.match(/^\/api\/doc\/(.+)$/);
   if (documentMatch) {
     const slug = decodeSegment(documentMatch[1]);
