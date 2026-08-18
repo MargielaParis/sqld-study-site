@@ -264,7 +264,7 @@ async function renderDoc(item: ManifestItem) {
         <div class="doc-body">
           <header class="doc-header"><p class="eyebrow">${escapeHtml(doc.section)}</p><h1 class="${doc.title.length >= 48 ? "long-title" : ""}">${escapeHtml(doc.title)}</h1><p class="doc-excerpt">${escapeHtml(doc.excerpt || "SQLD 학습 노트")}</p></header>
           <div class="prose">${doc.html}</div>
-          ${isPracticeDoc(doc) ? renderPracticeRunner() : ""}
+          ${isPracticeDoc(doc) ? renderPracticeWorkspace(doc) : ""}
           <nav class="pager" aria-label="문서 이동">
             ${previous ? `<a href="/docs/${encodeURIComponent(previous.slug)}" data-nav><small>이전 문서</small><strong>← ${escapeHtml(previous.title)}</strong></a>` : "<span></span>"}
             ${next ? `<a href="/docs/${encodeURIComponent(next.slug)}" data-nav class="pager-next"><small>다음 문서</small><strong>${escapeHtml(next.title)} →</strong></a>` : ""}
@@ -283,6 +283,19 @@ async function renderDoc(item: ManifestItem) {
 
 function isPracticeDoc(doc: Doc) {
   return (doc.sourcePath.startsWith("3-실습/3-") && doc.sourcePath.includes("실습 문제")) || doc.sourcePath === "public/practice-demo";
+}
+
+function renderPracticeWorkspace(doc: Doc) {
+  const schema = doc.html.match(/<details class="practice-schema-reference"[\s\S]*?<\/details>/)?.[0] ?? "";
+  return `
+    ${schema ? `<section class="practice-schema-repeat" aria-labelledby="practice-schema-repeat-title">
+      <p class="eyebrow">쿼리 작성 전 확인</p>
+      <h2 id="practice-schema-repeat-title">스키마 다시 보기</h2>
+      <p>필요한 테이블과 컬럼을 확인한 뒤 아래 실행기에서 쿼리를 작성하세요.</p>
+      ${schema}
+    </section>` : ""}
+    ${renderPracticeRunner()}
+  `;
 }
 
 function renderPracticeRunner() {
@@ -407,7 +420,6 @@ function renderPracticeEditor(
     prompt.innerHTML = escapeHtml(challenge.prompt).replace(/\n/g, "<br />");
     contract.innerHTML = `
       <div><dt>결과 컬럼</dt><dd>${challenge.expectedColumns.map((column) => `<code>${escapeHtml(column)}</code>`).join("")}</dd></div>
-      ${challenge.expectedOrder ? `<div><dt>결과 정렬</dt><dd><code>${escapeHtml(challenge.expectedOrder)}</code></dd></div>` : ""}
       ${challenge.relations.length ? `<div><dt>관련 테이블·뷰</dt><dd>${challenge.relations.map((relation) => `<code>${escapeHtml(relation)}</code>`).join("")}</dd></div>` : ""}
     `;
     input.value = buildPracticeStarter(challenge);

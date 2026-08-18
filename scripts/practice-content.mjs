@@ -15,6 +15,36 @@ const PRACTICE_PAIRS = [
   }
 ];
 
+const ORDER_LABELS = new Map([
+  ["price", "상품 가격"],
+  ["product_id", "상품 번호"],
+  ["customer_id", "고객 번호"],
+  ["payment_id", "결제 번호"],
+  ["region", "지역"],
+  ["final_amount", "주문 최종 금액"],
+  ["order_id", "주문 번호"],
+  ["order_month", "주문 월"],
+  ["order_count", "주문 건수"],
+  ["order_status", "주문 상태"],
+  ["employee_id", "직원 번호"],
+  ["customer_name", "고객명"],
+  ["ordered_at", "주문일시"],
+  ["line_no", "상세 행 번호"],
+  ["sold_quantity", "판매 수량"],
+  ["category_id", "카테고리 번호"],
+  ["salary", "급여"],
+  ["category_name", "카테고리명"],
+  ["product_no", "카테고리 내 상품 순번"],
+  ["department_id", "부서 번호"],
+  ["salary_rank", "급여 순위"],
+  ["product_amount", "상품 매출"],
+  ["sales_rank", "매출 순위"],
+  ["unit_price", "단가"],
+  ["category_path", "카테고리 경로"],
+  ["manager_path", "조직 경로"],
+  ["day", "날짜"]
+]);
+
 export async function buildPracticeContent({ parsedMarkdown, assets }) {
   const schema = assets.find((asset) => asset.sourcePath === "3-실습/db/01_schema.sql");
   const seed = assets.find((asset) => asset.sourcePath === "3-실습/db/02_seed.sql");
@@ -61,14 +91,20 @@ export async function buildPracticeContent({ parsedMarkdown, assets }) {
       seedSlug: seed.slug
     },
     schema: inspected.schema,
-    challenges: challenges.map((challenge) => ({
-      ...challenge,
-      expectedColumns: inspected.columnsById.get(challenge.id) ?? [],
-      expectedOrder: extractTopLevelOrderBy(challenge.solution),
-      relations: inspected.schema
-        .filter((relation) => containsIdentifier(challenge.solution, relation.name))
-        .map((relation) => relation.name)
-    }))
+    challenges: challenges.map((challenge) => {
+      const expectedOrder = extractTopLevelOrderBy(challenge.solution);
+      const orderRequirement = describeOrderBy(expectedOrder);
+      return {
+        ...challenge,
+        prompt: appendOrderRequirement(challenge.prompt, orderRequirement),
+        expectedColumns: inspected.columnsById.get(challenge.id) ?? [],
+        expectedOrder,
+        orderRequirement,
+        relations: inspected.schema
+          .filter((relation) => containsIdentifier(challenge.solution, relation.name))
+          .map((relation) => relation.name)
+      };
+    })
   };
 }
 
@@ -94,7 +130,8 @@ export function decoratePracticeMarkdown(markdown, sourcePath, practice) {
     if (!variants.length) continue;
 
     result += withSchema.slice(cursor, heading.index);
-    result += `${section.trimEnd()}\n\n${requirementCallout(variants)}\n\n`;
+    const orderRequirement = orderRequirementBlock(variants);
+    result += `${section.trimEnd()}${orderRequirement ? `\n\n${orderRequirement}` : ""}\n\n${requirementCallout(variants)}\n\n`;
     cursor = sectionEnd;
   }
 
@@ -273,7 +310,6 @@ function schemaReference(schema) {
 
 function requirementCallout(challenges) {
   const outputLines = distinct(challenges.map((challenge) => challenge.expectedColumns.join(",")));
-  const orderLines = distinct(challenges.map((challenge) => challenge.expectedOrder).filter(Boolean));
   const relations = distinct(challenges.flatMap((challenge) => challenge.relations));
   const lines = [];
 
@@ -284,16 +320,21 @@ function requirementCallout(challenges) {
       lines.push(`> - ${challenge.number} 출력 컬럼: ${formatIdentifiers(challenge.expectedColumns)}`);
     }
   }
-  if (orderLines.length === 1) {
-    lines.push(`> - 결과 정렬: \`${orderLines[0].replaceAll("`", "\\`")}\``);
-  } else if (orderLines.length > 1) {
-    for (const challenge of challenges.filter((challenge) => challenge.expectedOrder)) {
-      lines.push(`> - ${challenge.number} 결과 정렬: \`${challenge.expectedOrder.replaceAll("`", "\\`")}\``);
-    }
-  }
   if (relations.length) lines.push(`> - 관련 테이블·뷰: ${formatIdentifiers(relations)}`);
 
   return `> [!info] 결과 명세\n${lines.join("\n")}`;
+}
+
+function orderRequirementBlock(challenges) {
+  const requirements = distinct(challenges.map((challenge) => challenge.orderRequirement).filter(Boolean));
+  if (!requirements.length) return "";
+  if (requirements.length === 1) return `**결과 순서:** ${requirements[0]}`;
+  return ["**결과 순서:**", ...challenges.filter((challenge) => challenge.orderRequirement).map((challenge) => `- ${challenge.number}: ${challenge.orderRequirement}`)].join("\n");
+}
+
+function appendOrderRequirement(prompt, requirement) {
+  if (!requirement) return prompt;
+  return `${prompt.trim()}\n\n결과 순서: ${requirement}`;
 }
 
 function formatIdentifiers(values) {
@@ -306,6 +347,58 @@ function distinct(values) {
 
 function containsIdentifier(sql, identifier) {
   return new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRegExp(identifier)}(?![\\p{L}\\p{N}_])`, "iu").test(sql);
+}
+
+function describeOrderBy(orderBy) {
+  if (!orderBy) return "";
+  if (/^CASE\s+order_status\b/i.test(orderBy)) {
+    return "주문 상태는 PAID → SHIPPED → DELIVERED → REFUNDED → CANCELLED 순으로 정렬하고, 같은 상태에서는 최신 주문부터 출력한다.";
+  }
+  if (/^GROUPING\(c\.category_name\)/i.test(orderBy)) {
+    return "상세 행을 소계·총계 행보다 먼저 두고, 카테고리명과 주문 상태는 각각 오름차순으로 정렬하며 NULL은 마지막에 둔다.";
+  }
+
+  const terms = splitOrderTerms(orderBy).map(describeOrderTerm);
+  if (terms.length === 1) return `${terms[0]}으로 출력한다.`;
+  return `정렬 우선순위는 ${terms.join(" → ")}이다.`;
+}
+
+function describeOrderTerm(term) {
+  const direction = /\s+DESC\b/i.test(term) ? "내림차순" : "오름차순";
+  const expression = term
+    .replace(/\s+NULLS\s+(?:FIRST|LAST)\b/ig, "")
+    .replace(/\s+(?:ASC|DESC)\b/ig, "")
+    .trim();
+  const identifier = expression.split(".").at(-1)?.replaceAll('"', "").toLowerCase();
+  const label = ORDER_LABELS.get(identifier);
+  if (!label) throw new Error(`자연어 정렬 라벨을 찾지 못했습니다: ${term}`);
+  return `${label} ${direction}`;
+}
+
+function splitOrderTerms(source) {
+  const terms = [];
+  let start = 0;
+  let depth = 0;
+  let quote = "";
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    const next = source[index + 1];
+    if (quote) {
+      if (character === quote && next === quote) index += 1;
+      else if (character === quote) quote = "";
+      continue;
+    }
+    if (character === "'" || character === '"') quote = character;
+    else if (character === "(") depth += 1;
+    else if (character === ")") depth = Math.max(0, depth - 1);
+    else if (character === "," && depth === 0) {
+      terms.push(source.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  terms.push(source.slice(start).trim());
+  return terms.filter(Boolean);
 }
 
 function extractTopLevelOrderBy(sql) {

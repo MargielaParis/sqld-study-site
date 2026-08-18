@@ -186,6 +186,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .empty-state h1 { margin: 1rem 0 2rem; font-family: var(--display); font-size: 2.5rem; letter-spacing: -.07em; text-wrap: balance; }
 .no-results { color: var(--muted); font-size: .7rem; }
 
+.practice-schema-repeat { max-width: 46rem; margin-top: 4.5rem; }
+.practice-schema-repeat h2 { margin: .55rem 0 .65rem; font-family: var(--display); font-size: clamp(1.35rem, 3vw, 1.85rem); font-weight: 600; letter-spacing: -.04em; line-height: 1.12; text-wrap: balance; }
+.practice-schema-repeat > p:last-of-type { max-width: 36rem; margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.7; }
+.practice-schema-repeat .practice-schema-reference { margin: 1rem 0 0; }
+.practice-schema-repeat + .practice-runner { margin-top: 1.25rem; }
 .practice-runner { max-width: 46rem; margin-top: 4.5rem; padding: clamp(1.2rem, 4vw, 2rem); border: 1px solid var(--ink); background: var(--paper-deep); }
 .practice-runner-head { display: flex; justify-content: space-between; gap: 1.5rem; align-items: flex-start; }
 .practice-runner-head h2 { margin: .55rem 0 .7rem; font-family: var(--display); font-size: clamp(1.35rem, 3vw, 1.85rem); font-weight: 600; letter-spacing: -.04em; line-height: 1.12; text-wrap: balance; }
